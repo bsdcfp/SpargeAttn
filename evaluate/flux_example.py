@@ -1,3 +1,18 @@
+######################################################################
+#
+# Copyright (c) 2025 Shopee Inc. All Rights Reserved.
+#
+######################################################################
+
+"""
+@FileName: flux_example.py
+@Author: fuping.chu
+@Email: fuping.chu@shopee.com
+@Date:   2025-04-07 04:25:47
+@Last Modified by:   fuping.chu
+@Last Modified time: 2025-04-07 11:34:32
+@Desc: 
+"""
 import torch
 from diffusers import FluxPipeline
 from diffusers import FluxTransformer2DModel
@@ -45,7 +60,8 @@ if __name__ == "__main__":
     with open(file_path, "r", encoding="utf-8") as file:
         prompts = file.readlines()
 
-    model_id = "black-forest-labs/FLUX.1-dev"
+    # model_id = "black-forest-labs/FLUX.1-dev"
+    model_id = "/model_zoo/flux.1_dev/"
     if args.parallel_tune:
         os.environ['PARALLEL_TUNE'] = '1'
     if args.tune == True:
@@ -88,12 +104,12 @@ if __name__ == "__main__":
 
     else:
         os.environ["TUNE_MODE"] = ""  # disable tune mode
+        print("=====")
 
         transformer = FluxTransformer2DModel.from_pretrained(
             model_id,
             local_files_only=True,
-            subfolder="transformer",
-            torch_dtype=torch.float16,
+            subfolder="transformer"
         )
         if args.use_spas_sage_attn:
             set_spas_sage_attn_flux(transformer, verbose=args.verbose, l1=args.l1, pv_l1=args.pv_l1)
@@ -102,20 +118,19 @@ if __name__ == "__main__":
 
         pipe = FluxPipeline.from_pretrained(
             model_id,
-            transformer=transformer,
-            torch_dtype=torch.float16,
+            transformer=transformer
         )
 
         pipe.enable_model_cpu_offload()
-        # pipe.enable_sequential_cpu_offload()
+        pipe.enable_sequential_cpu_offload()
 
         for i, prompt in enumerate(prompts):
             image = pipe(
                 prompt.strip(),
-                height=1024,
-                width=1024,
+                height=256,
+                width=256,
                 guidance_scale=3.5,
-                num_inference_steps=50,
+                num_inference_steps=5,
                 max_sequence_length=512,
                 generator=torch.Generator(device="cuda").manual_seed(42)
             ).images[0]
