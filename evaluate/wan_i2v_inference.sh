@@ -1,31 +1,44 @@
-# TFP Values: 
-# Set the following values to control the percentage of timesteps using dense attention:
-# 35% → 0.09, 30% → 0.075, 25% → 0.055, 20% → 0.045, 15% → 0.03, 10% → 0.02
-first_times_fp=0.075
-first_layers_fp=0.025
-sparsity=0.25
-pattern="SVG" # choose from [dense, SVG]
-model_id="/model_zoo/Wan2.1-I2V-14B-480P-Diffusers"
+model_id="/model_zoo/Wan2.1-I2V-14B-480P"
 
-prompt=$(cat examples/wan/3/prompt.txt)
-image_path="examples/wan/3/image.jpg"
+prompt=$(cat examples/prompt.txt)
+image_path="examples/i2v_input.JPG"
+no_prompt="Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards"
 
 start_time=$(date +%s)  
 echo "Starting at $(date +"%H:%M:%S")"  
 
-cmd="python wan_i2v_inference.py \
-    --model_id "$model_id" \
-    --prompt "$prompt" \
-    --image_path "$image_path" \
-    --seed 0 \
-    --num_inference_steps 30 \
-    --pattern ${pattern} \
-    --num_sampled_rows 64 \
-    --sparsity $sparsity \
-    --sample_mse_max_row 20000 \
-    --first_times_fp $first_times_fp \
-    --first_layers_fp $first_layers_fp"
-echo $cmd
+# Tuning
+# sequential tuning
+python evaluate/wan_example.py \
+    --task i2v-14B \
+    --size 832*480 \
+    --sample_steps 30 \
+    --ckpt_dir $model_id \
+    --image $image_path \
+    --prompt "$prompt"\
+    --base_seed 42 \
+    --offload False \
+    --use_spas_sage_attn \
+    --l1 0.03 \
+    --pv_l1 0.035 \
+    --model_out_path evaluate/models_dict/Wan2.1-I2V-14B-480P_0.03_0.035.pt \
+    --tune
+#     --parallel_tune
+
+
+# Inference
+python evaluate/wan_example.py  \
+    --use_spas_sage_attn \
+    --model_out_path evaluate/models_dict/Wan2.1-I2V-14B-480P_0.06_0.07.pt \
+    --compile \
+    --task i2v-14B \
+    --size 832*480 \
+    --sample_steps 30 \
+    --ckpt_dir $model_id \
+    --image $image_path \
+    --prompt "$prompt"\
+    --base_seed 42 \
+    --offload False
 
 end_time=$(date +%s)  
 elapsed=$((end_time - start_time))  
