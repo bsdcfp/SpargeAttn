@@ -29,7 +29,7 @@ python evaluate/wan_example.py \
 # Inference
 python evaluate/wan_example.py  \
     --use_spas_sage_attn \
-    --model_out_path evaluate/models_dict/Wan2.1-I2V-14B-480P_0.06_0.07.pt \
+    --model_out_path evaluate/models_dict/Wan2.1-I2V-14B-480P_0.03_0.035.pt \
     --compile \
     --task i2v-14B \
     --size 832*480 \
