@@ -7,3 +7,4 @@ spas_sage_attn.egg-info
 .DS_Store
 inst*.cu
 *.mp4
+/unit_test
