@@ -27,8 +27,8 @@ python evaluate/wan_example.py \
     --l1 0.03 \
     --pv_l1 0.035 \
     --model_out_path evaluate/models_dict/Wan2.1-I2V-14B-480P_0.03_0.035.pt \
-    --tune #\
-    # --parallel_tune
+    --tune 
+    --parallel_tune
 
 
 # Inference

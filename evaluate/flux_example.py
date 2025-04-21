@@ -23,6 +23,8 @@ from spas_sage_attn.autotune import (
     extract_sparse_attention_state_dict,
     load_sparse_attention_state_dict,
 )
+import time
+from datetime import datetime
 
 file_path = "evaluate/datasets/video/prompts.txt"
 
@@ -48,6 +50,8 @@ def parse_args():
         default="evaluate/models_dict/flux_saved_state_dict.pt",
         help="model_out_path",
     )
+    parser.add_argument(
+        "--sample_steps", type=int, default=20, help="The sampling steps.")
     args = parser.parse_args()
     return args
 
@@ -79,9 +83,9 @@ if __name__ == "__main__":
             model_id,
             transformer=transformer,
             torch_dtype=torch.float16,
-        )
+        ).to("cuda")
 
-        pipe.enable_model_cpu_offload()
+        # pipe.enable_model_cpu_offload()
         # pipe.enable_sequential_cpu_offload()
 
         for i, prompt in enumerate(prompts[:10]):
@@ -115,27 +119,51 @@ if __name__ == "__main__":
             set_spas_sage_attn_flux(transformer, verbose=args.verbose, l1=args.l1, pv_l1=args.pv_l1)
             saved_state_dict = torch.load(args.model_out_path)
             load_sparse_attention_state_dict(transformer, saved_state_dict)
+        if not args.use_spas_sage_attn:
+            args.out_path = "evaluate/datasets/image/flux_FA"
+            os.makedirs(args.out_path, exist_ok=True)
 
         pipe = FluxPipeline.from_pretrained(
             model_id,
             transformer=transformer
-        )
+        ).to("cuda")
 
-        pipe.enable_model_cpu_offload()
-        pipe.enable_sequential_cpu_offload()
-
+        # pipe.enable_model_cpu_offload()
+        # pipe.enable_sequential_cpu_offload()
+        height =  1024
+        width = 768
         for i, prompt in enumerate(prompts):
+            start_time = time.perf_counter() 
             image = pipe(
                 prompt.strip(),
-                height=256,
-                width=256,
+                height=height,
+                width=width,
                 guidance_scale=3.5,
-                num_inference_steps=5,
+                num_inference_steps=args.sample_steps,
                 max_sequence_length=512,
-                generator=torch.Generator(device="cuda").manual_seed(42)
+                generator=torch.Generator(device="cpu").manual_seed(42)
             ).images[0]
-
-            image.save(f"{args.out_path}/{i}.jpg")
+            elapsed = time.perf_counter() - start_time  
+            print(f"Inference [{i}] execution time: {elapsed:.2f} seconds "
+                  f"({int(elapsed // 60)} minutes and {int(elapsed % 60)} seconds)")  
+            
+            formatted_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+            formatted_prompt = prompt.replace(" ", "_").replace("/","_")[:40]
+            model_name=model_id.strip().strip("/").split("/")[-1]
+            if args.use_spas_sage_attn:
+                save_file = (f"{model_name}_sparse_{args.l1}_{args.pv_l1}"
+                             f"_steps{args.sample_steps}_{height}x{width}" 
+                            f"_{formatted_prompt}_{formatted_time}"
+                            f".jpg")
+            else:
+                save_file = (f"{model_name}_steps{args.sample_steps}_{height}x{width}" 
+                            f"_{formatted_prompt}_{formatted_time}"
+                            f".jpg")
+            save_file = os.path.join(args.out_path, save_file)
+            
+            # image.save(f"{args.out_path}/{i}.jpg")
+            print(f"Save file path: {save_file}")
+            image.save(save_file)
             del image
             gc.collect()
             torch.cuda.empty_cache()
