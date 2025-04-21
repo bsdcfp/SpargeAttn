@@ -5,12 +5,10 @@
 ######################################################################
 
 """
-@FileName: flux_example.py
+@FileName: flux_fill_example.py
 @Author: fuping.chu
 @Email: fuping.chu@shopee.com
 @Date:   2025-04-07 04:25:47
-@Last Modified by:   fuping.chu
-@Last Modified time: 2025-04-07 11:34:32
 @Desc: 
 """
 import torch
