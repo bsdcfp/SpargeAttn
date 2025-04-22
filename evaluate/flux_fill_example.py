@@ -12,8 +12,11 @@
 @Desc: 
 """
 import torch
-from diffusers import FluxPipeline
+# from diffusers import FluxPipeline
+from diffusers import FluxFillPipeline
 from diffusers import FluxTransformer2DModel
+from diffusers.utils import load_image
+
 import torch, argparse
 from modify_model.modify_flux import set_spas_sage_attn_flux
 import os, gc
@@ -28,7 +31,7 @@ file_path = "evaluate/datasets/video/prompts.txt"
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Flux Evaluation")
+    parser = argparse.ArgumentParser(description="Flux-fill Evaluation")
 
     parser.add_argument("--use_spas_sage_attn", action="store_true", help="Use Sage Attention")
     parser.add_argument("--tune", action="store_true", help="tuning hyperpamameters")
@@ -39,17 +42,34 @@ def parse_args():
     parser.add_argument(
         "--out_path",
         type=str,
-        default="evaluate/datasets/image/flux_sparge",
+        default="evaluate/datasets/image/flux_fill_sparge",
         help="out_path",
     )
     parser.add_argument(
         "--model_out_path",
         type=str,
-        default="evaluate/models_dict/flux_saved_state_dict.pt",
+        default="evaluate/models_dict/flux_fill_saved_state_dict.pt",
         help="model_out_path",
     )
     parser.add_argument(
-        "--sample_steps", type=int, default=20, help="The sampling steps.")
+        "--sample_steps", type=int, default=50, help="The sampling steps.")
+    parser.add_argument(
+        "--prompt",
+        type=str,
+        default=None,
+        help="The prompt to generate the image or video from.")
+    parser.add_argument(  
+        "--image",  
+        type=str,  
+        default=None,  
+        help="Path to the input image file for generation or editing."  
+    )  
+    parser.add_argument(  
+        "--image-mask",  
+        type=str,  
+        default=None,  
+        help="Optional path to a mask image file. Specifies regions in the input image to modify or inpaint."  
+    )  
     args = parser.parse_args()
     return args
 
@@ -59,12 +79,18 @@ if __name__ == "__main__":
     os.makedirs(args.out_path, exist_ok=True)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    with open(file_path, "r", encoding="utf-8") as file:
-        prompts = file.readlines()
+    # with open(file_path, "r", encoding="utf-8") as file:
+    #     prompts = file.readlines()
+    prompts = ["a white paper cup"]
+    image_path="./assets/cup.png"
+    mask_path = "./assets/cup_mask.png"
 
+    image = load_image(image_path)
+    mask = load_image(mask_path)
     # model_id = "black-forest-labs/FLUX.1-dev"
     # model_id = "/model_zoo/flux.1_dev/"
-    model_id = "/model_zoo/FLUX.1-dev"
+    # model_id = "/model_zoo/FLUX.1-dev"
+    model_id = "/model_zoo/flux.1_fill_dev"
     
     if args.parallel_tune:
         os.environ['PARALLEL_TUNE'] = '1'
@@ -79,7 +105,7 @@ if __name__ == "__main__":
         if args.use_spas_sage_attn:
             set_spas_sage_attn_flux(transformer, verbose=args.verbose, l1=args.l1, pv_l1=args.pv_l1)
 
-        pipe = FluxPipeline.from_pretrained(
+        pipe = FluxFillPipeline.from_pretrained(
             model_id,
             transformer=transformer,
             torch_dtype=torch.float16,
@@ -90,13 +116,15 @@ if __name__ == "__main__":
 
         for i, prompt in enumerate(prompts[:10]):
             image = pipe(
-                prompt.strip(),
-                height=1024,  # tune in 512 and infer in 1024 result in a good performance
-                width=1024,
-                guidance_scale=3.5,
-                num_inference_steps=50,
+                prompt=prompt.strip(),
+                image=image,
+                mask_image=mask,
+                height=512,
+                width=512,
+                guidance_scale=30,
+                num_inference_steps=args.sample_steps,
                 max_sequence_length=512,
-                generator=torch.Generator(device="cuda").manual_seed(42)
+                generator=torch.Generator("cpu").manual_seed(0)
             ).images[0]
 
             del image
@@ -120,28 +148,30 @@ if __name__ == "__main__":
             saved_state_dict = torch.load(args.model_out_path)
             load_sparse_attention_state_dict(transformer, saved_state_dict)
         if not args.use_spas_sage_attn:
-            args.out_path = "evaluate/datasets/image/flux_FA"
+            args.out_path = "evaluate/datasets/image/flux_fill_FA"
             os.makedirs(args.out_path, exist_ok=True)
 
-        pipe = FluxPipeline.from_pretrained(
+        pipe = FluxFillPipeline.from_pretrained(
             model_id,
             transformer=transformer
         ).to("cuda")
 
         # pipe.enable_model_cpu_offload()
         # pipe.enable_sequential_cpu_offload()
-        height =  1024
-        width = 768
+        height =  512
+        width = 512
         for i, prompt in enumerate(prompts):
             start_time = time.perf_counter() 
             image = pipe(
-                prompt.strip(),
+                prompt=prompt.strip(),
+                image=image,
+                mask_image=mask,
                 height=height,
                 width=width,
-                guidance_scale=3.5,
+                guidance_scale=30,
                 num_inference_steps=args.sample_steps,
                 max_sequence_length=512,
-                generator=torch.Generator(device="cpu").manual_seed(42)
+                generator=torch.Generator("cpu").manual_seed(0)
             ).images[0]
             elapsed = time.perf_counter() - start_time  
             print(f"Inference [{i}] execution time: {elapsed:.2f} seconds "

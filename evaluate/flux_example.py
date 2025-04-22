@@ -52,6 +52,11 @@ def parse_args():
     )
     parser.add_argument(
         "--sample_steps", type=int, default=20, help="The sampling steps.")
+    parser.add_argument(
+        "--ckpt_dir",
+        type=str,
+        default=None,
+        help="The path to the checkpoint directory.")
     args = parser.parse_args()
     return args
 
@@ -66,7 +71,7 @@ if __name__ == "__main__":
 
     # model_id = "black-forest-labs/FLUX.1-dev"
     # model_id = "/model_zoo/flux.1_dev/"
-    model_id = "/model_zoo/FLUX.1-dev"
+    model_id = args.ckpt_dir
     
     if args.parallel_tune:
         os.environ['PARALLEL_TUNE'] = '1'
@@ -129,7 +134,8 @@ if __name__ == "__main__":
             model_id,
             transformer=transformer
         ).to("cuda")
-
+        pipe.vae.enable_slicing()
+        pipe.vae.enable_tiling()
         # pipe.enable_model_cpu_offload()
         # pipe.enable_sequential_cpu_offload()
         height =  1024
