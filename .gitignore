@@ -8,3 +8,4 @@ spas_sage_attn.egg-info
 inst*.cu
 *.mp4
 /unit_test
+evaluate/datasets/image*
