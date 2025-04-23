@@ -27,8 +27,10 @@ mode=$1
 shift  
 
 # 默认参数  
+# l1=0.03 
+# pv_l1=0.035  
 l1=0.06 
-pv_l1=0.07  
+pv_l1=0.07 
 model_out_path="evaluate/models_dict/flux_saved_state_dict_${l1}_${pv_l1}.pt"  
 parallel_tune_flag=""  
 

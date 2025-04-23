@@ -70,6 +70,8 @@ def parse_args():
         default=None,  
         help="Optional path to a mask image file. Specifies regions in the input image to modify or inpaint."  
     )  
+    parser.add_argument('--compile', action='store_true', help='Compile the model')
+
     args = parser.parse_args()
     return args
 
@@ -155,11 +157,26 @@ if __name__ == "__main__":
             model_id,
             transformer=transformer
         ).to("cuda")
-
         # pipe.enable_model_cpu_offload()
         # pipe.enable_sequential_cpu_offload()
-        height =  512
-        width = 512
+        height =  1024
+        width = 768
+
+        if args.compile:
+            print("Compile flux transformer model ...")
+            pipe.transformer = torch.compile(pipe.transformer, mode="max-autotune-no-cudagraphs")
+            pipe(
+                prompt=prompts[0].strip(),
+                image=image,
+                mask_image=mask,
+                height=height,
+                width=width,
+                guidance_scale=30,
+                num_inference_steps=1,
+                max_sequence_length=512,
+                generator=torch.Generator("cpu").manual_seed(0)
+            )
+
         for i, prompt in enumerate(prompts):
             start_time = time.perf_counter() 
             image = pipe(

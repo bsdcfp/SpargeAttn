@@ -68,6 +68,7 @@ echo "Starting at $(date +"%H:%M:%S")"
 if [[ $mode == "full" ]]; then  
   echo "Running inference by full attention..."  
   python evaluate/flux_fill_example.py  \
+    --compile \
     --out_path evaluate/datasets/image/flux_fill_FA
 
 elif [[ $mode == "tune" ]]; then  
@@ -83,6 +84,7 @@ elif [[ $mode == "tune" ]]; then
 elif [[ $mode == "sparse" ]]; then  
   echo "Running inference by sparse attention with l1=${l1}, pv_l1=${pv_l1}..."  
   python evaluate/flux_fill_example.py \
+      --compile \
       --use_spas_sage_attn \
       --l1 $l1 \
       --pv_l1 $pv_l1 \

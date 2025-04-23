@@ -9,3 +9,4 @@ inst*.cu
 *.mp4
 /unit_test
 evaluate/datasets/image*
+*.log
