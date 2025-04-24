@@ -6,4 +6,7 @@ spas_sage_attn.egg-info
 *.so
 .DS_Store
 inst*.cu
+*.mp4
 /unit_test
+evaluate/datasets/image*
+*.log

@@ -4,7 +4,9 @@ from datetime import datetime
 import logging
 import os
 import sys
+import time
 import warnings
+import pandas as pd
 from modify_model.modify_wan import set_spas_sage_attn_wan
 from spas_sage_attn.autotune import (
     extract_sparse_attention_state_dict,
@@ -195,7 +197,12 @@ def _parse_args():
         type=float,
         default=5.0,
         help="Classifier free guidance scale.")
-
+    parser.add_argument(
+        "--prompt_image_pairs",
+        type=str,
+        default=None,
+        help="The file contains prompt and image pairs to generate the image or video from.")
+    
     ## sparge part
     parser.add_argument("--use_spas_sage_attn", action="store_true", help="Use Sage Attention")
     parser.add_argument("--tune", action="store_true", help="tuning hyperpamameters")
@@ -292,15 +299,16 @@ def generate(args):
         args.prompt = EXAMPLE_PROMPT[args.task]["prompt"]
     logging.info(f"Input prompt: {args.prompt}")
     
-    if not isinstance(args.prompt, list):
-        args.prompt = [args.prompt]
-    if len(args.prompt) == 1 and args.prompt[0].endswith('txt'):
-        prompt = open(args.prompt[0], 'r').readlines()
-        args.prompt = [i.strip() for i in prompt]
+
 
     
     if "t2v" in args.task or "t2i" in args.task:
         logging.info("Creating WanT2V pipeline.")
+        if not isinstance(args.prompt, list):
+            args.prompt = [args.prompt]
+        if len(args.prompt) == 1 and args.prompt[0].endswith('txt'):
+            prompt = open(args.prompt[0], 'r').readlines()
+            args.prompt = [i.strip() for i in prompt]
         wan_t2v = wan.WanT2V(
             config=cfg,
             checkpoint_dir=args.ckpt_dir,
@@ -362,15 +370,15 @@ def generate(args):
             torch.save(saved_state_dict, args.model_out_path)
 
     else:
-        if args.image is None:
-            args.image = EXAMPLE_PROMPT[args.task]["image"]
-        logging.info(f"Input image: {args.image}")
-        logging.info("Generating video ...")
-        if not isinstance(args.image, list):
-            args.image = [args.image]
-        if len(args.image) == 1 and args.image[0].endswith('txt'):
-            img_paths = open(args.image[0], 'r').readlines()
-            args.image = [i.strip() for i in img_paths]
+        # if args.image is None:
+        #     args.image = EXAMPLE_PROMPT[args.task]["image"]
+        # logging.info(f"Input image: {args.image}")
+        # logging.info("Generating video ...")
+        # if not isinstance(args.image, list):
+        #     args.image = [args.image]
+        # if len(args.image) == 1 and args.image[0].endswith('txt'):
+        #     img_paths = open(args.image[0], 'r').readlines()
+        #     args.image = [i.strip() for i in img_paths]
 
 
         logging.info("Creating WanI2V pipeline.")
@@ -391,11 +399,90 @@ def generate(args):
                 saved_state_dict = torch.load(args.model_out_path)
                 load_sparse_attention_state_dict(wan_i2v.model, saved_state_dict)
 
-            
-        for prompt, image_path in tqdm(list(zip(args.prompt, args.image)), desc='prompt precess'):
-            img = Image.open(image_path).convert("RGB")
+        if args.prompt_image_pairs is not None:  
+            # for prompt, image_path in tqdm(list(zip(args.prompt, args.image)), desc='prompt precess'):
+            df = pd.read_csv(args.prompt_image_pairs) 
+            df_head = df.head(3)  # 取前3行数据
+            for idx, row in df_head.iterrows(): 
+                image_path = os.path.join(os.path.dirname(args.prompt_image_pairs), row['video_path'])
+                prompt = row['caption']  
+                logging.info(f"[{idx}] Input prompt: {prompt}")
+                logging.info(f"[{idx}] Input image: {image_path}")
+                # 加载图片  
+                img = Image.open(image_path).convert("RGB")  
+                # 开始总计时  
+                start_time = time.perf_counter() 
+                video = wan_i2v.generate(
+                    prompt,
+                    img,
+                    max_area=MAX_AREA_CONFIGS[args.size],
+                    frame_num=args.frame_num,
+                    shift=args.sample_shift,
+                    sample_solver=args.sample_solver,
+                    sampling_steps=args.sample_steps,
+                    guide_scale=args.sample_guide_scale,
+                    seed=args.base_seed,
+                    offload_model=args.offload_model)
+                # 结束总计时  
+                elapsed = time.perf_counter() - start_time  
+                logging.info(f"Inference execution time: {elapsed:.2f} seconds ({int(elapsed // 60)} minutes and {int(elapsed % 60)} seconds)") 
+
+                if rank == 0:
+                    os.makedirs(args.out_path, exist_ok=True)
+                    formatted_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    formatted_prompt = prompt.replace(" ", "_").replace("/", "_")[:50]
+                    suffix = '.png' if "t2i" in args.task else '.mp4'
+                    model_name=args.ckpt_dir.strip().strip("/").split("/")[-1]
+                    # args.save_file = f"{args.task}_{args.size.replace('*','x') if sys.platform=='win32' else args.size}_{args.ulysses_size}_{args.ring_size}_{formatted_prompt}_{formatted_time}" + suffix
+                    args.save_file = (f"{model_name}_steps{args.sample_steps}_[{idx}]" 
+                            f"_{formatted_prompt}_{formatted_time}"
+                            f"{suffix}")
+                    args.save_file = os.path.join(args.out_path, args.save_file)
+
+                    if "t2i" in args.task:
+                        logging.info(f"Saving generated image to {args.save_file}")
+                        cache_image(
+                            tensor=video.squeeze(1)[None],
+                            save_file=args.save_file,
+                            nrow=1,
+                            normalize=True,
+                            value_range=(-1, 1))
+                    else:
+                        logging.info(f"Saving generated video to {args.save_file}")
+                        cache_video(
+                            tensor=video[None],
+                            save_file=args.save_file,
+                            fps=cfg.sample_fps,
+                            nrow=1,
+                            normalize=True,
+                            value_range=(-1, 1))
+        else:
+            if args.prompt is None:
+                args.prompt = EXAMPLE_PROMPT[args.task]["prompt"]
+            if args.image is None:
+                args.image = EXAMPLE_PROMPT[args.task]["image"]
+            logging.info(f"Input prompt: {args.prompt}")
+            logging.info(f"Input image: {args.image}")
+            img = Image.open(args.image).convert("RGB")
+
+            logging.info("Creating WanI2V pipeline.")
+            wan_i2v = wan.WanI2V(
+                config=cfg,
+                checkpoint_dir=args.ckpt_dir,
+                device_id=device,
+                rank=rank,
+                t5_fsdp=args.t5_fsdp,
+                dit_fsdp=args.dit_fsdp,
+                use_usp=(args.ulysses_size > 1 or args.ring_size > 1),
+                t5_cpu=args.t5_cpu,
+            )
+            logging.info("Generating video ...")
+
+
+            # 开始总计时  
+            start_time = time.perf_counter()  
             video = wan_i2v.generate(
-                prompt,
+                args.prompt,
                 img,
                 max_area=MAX_AREA_CONFIGS[args.size],
                 frame_num=args.frame_num,
@@ -405,36 +492,43 @@ def generate(args):
                 guide_scale=args.sample_guide_scale,
                 seed=args.base_seed,
                 offload_model=args.offload_model)
+            # 结束总计时  
+            elapsed = time.perf_counter() - start_time  
+            logging.info(f"Inference execution time: {elapsed:.2f} seconds ({int(elapsed // 60)} minutes and {int(elapsed % 60)} seconds)")  
+            formatted_time = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-            if rank == 0:
-                os.makedirs(args.out_path, exist_ok=True)
-                formatted_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-                formatted_prompt = prompt.replace(" ", "_").replace("/", "_")[:50]
-                suffix = '.png' if "t2i" in args.task else '.mp4'
-                args.save_file = f"{args.task}_{args.size.replace('*','x') if sys.platform=='win32' else args.size}_{args.ulysses_size}_{args.ring_size}_{formatted_prompt}_{formatted_time}" + suffix
-                args.save_file = os.path.join(args.out_path, args.save_file)
-
-                if "t2i" in args.task:
-                    logging.info(f"Saving generated image to {args.save_file}")
-                    cache_image(
-                        tensor=video.squeeze(1)[None],
-                        save_file=args.save_file,
-                        nrow=1,
-                        normalize=True,
-                        value_range=(-1, 1))
-                else:
-                    logging.info(f"Saving generated video to {args.save_file}")
-                    cache_video(
-                        tensor=video[None],
-                        save_file=args.save_file,
-                        fps=cfg.sample_fps,
-                        nrow=1,
-                        normalize=True,
-                        value_range=(-1, 1))
         if args.use_spas_sage_attn and args.tune:
             saved_state_dict = extract_sparse_attention_state_dict(wan_i2v.model)
             torch.save(saved_state_dict, args.model_out_path)
-            
+    if rank == 0:
+        os.makedirs(args.out_path, exist_ok=True)
+        formatted_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+        formatted_prompt = args.prompt.replace(" ", "_").replace("/", "_")[:50]
+        suffix = '.png' if "t2i" in args.task else '.mp4'
+        model_name=args.ckpt_dir.strip().strip("/").split("/")[-1]
+        # args.save_file = f"{args.task}_{args.size.replace('*','x') if sys.platform=='win32' else args.size}_{args.ulysses_size}_{args.ring_size}_{formatted_prompt}_{formatted_time}" + suffix
+        args.save_file = (f"{model_name}_steps{args.sample_steps}" 
+                f"_{formatted_prompt}_{formatted_time}"
+                f"{suffix}")
+        args.save_file = os.path.join(args.out_path, args.save_file)
+
+        if "t2i" in args.task:
+            logging.info(f"Saving generated image to {args.save_file}")
+            cache_image(
+                tensor=video.squeeze(1)[None],
+                save_file=args.save_file,
+                nrow=1,
+                normalize=True,
+                value_range=(-1, 1))
+        else:
+            logging.info(f"Saving generated video to {args.save_file}")
+            cache_video(
+                tensor=video[None],
+                save_file=args.save_file,
+                fps=cfg.sample_fps,
+                nrow=1,
+                normalize=True,
+                value_range=(-1, 1))
     logging.info("Finished.")
 
 

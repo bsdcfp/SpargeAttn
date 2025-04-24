@@ -10,7 +10,9 @@ from spas_sage_attn.autotune import (
     load_sparse_attention_state_dict,
 )
 
-prompt_path = "evaluate/datasets/video/prompts.txt"
+# prompt_path = "evaluate/datasets/video/prompts.txt"
+prompt_path = "evaluate/datasets/video/prompt_official.txt"
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Flux Evaluation")
@@ -45,6 +47,7 @@ if __name__ == "__main__":
 
     dtype_ = torch.bfloat16
     num_frames_ = 49
+    model_id = "/model_zoo/CogVideoX-2b/"
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -57,7 +60,7 @@ if __name__ == "__main__":
         os.environ["TUNE_MODE"] = "1"  # enable tune mode
 
         transformer = CogVideoXTransformer3DModel.from_pretrained(
-            "THUDM/CogVideoX-2b",
+            model_id,
             subfolder="transformer",
             torch_dtype=dtype_,
         )
@@ -66,7 +69,7 @@ if __name__ == "__main__":
             set_spas_sage_attn_cogvideox(transformer, verbose=args.verbose, l1=args.l1, pv_l1=args.pv_l1)
 
         pipe = CogVideoXPipeline.from_pretrained(
-            "THUDM/CogVideoX-2b",
+            model_id,
             transformer=transformer,
             torch_dtype=dtype_,
         ).to(device)
@@ -93,7 +96,7 @@ if __name__ == "__main__":
     else:
         os.environ["TUNE_MODE"] = ""  # disable tune mode
         transformer = CogVideoXTransformer3DModel.from_pretrained(
-            "THUDM/CogVideoX-2b",
+            model_id,
             local_files_only=False,
             subfolder="transformer",
             torch_dtype=dtype_,
@@ -106,7 +109,7 @@ if __name__ == "__main__":
             load_sparse_attention_state_dict(transformer, saved_state_dict)
 
         pipe = CogVideoXPipeline.from_pretrained(
-            "THUDM/CogVideoX-2b",
+            model_id,
             transformer=transformer,
             torch_dtype=dtype_,
         ).to(device)
@@ -131,3 +134,4 @@ if __name__ == "__main__":
             del video
             gc.collect()
             torch.cuda.empty_cache()
+            break
