@@ -24,12 +24,11 @@ python evaluate/wan_example.py \
     --base_seed 42 \
     --offload False \
     --use_spas_sage_attn \
-    --l1 0.03 \
-    --pv_l1 0.035 \
-    --model_out_path evaluate/models_dict/Wan2.1-I2V-14B-480P_0.03_0.035.pt \
+    --l1 0.06 \
+    --pv_l1 0.07 \
+    --model_out_path evaluate/models_dict/Wan2.1-I2V-14B-480P_0.06_0.07.pt \
     --tune 
-    --parallel_tune
-
+    # --parallel_tune
 
 # Inference
 # python evaluate/wan_example.py  \
