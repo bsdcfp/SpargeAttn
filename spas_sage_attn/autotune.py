@@ -123,7 +123,7 @@ class SparseAttentionMeansim(nn.Module):
         if sm >= 89:
             return spas_sage2_attn_meansim_cuda
         else:
-            warnings.warn(f'{sm=}, do not support sageattn2, using sageattn1 kernel')
+            # warnings.warn(f'{sm=}, do not support sageattn2, using sageattn1 kernel')
             return spas_sage_attn_meansim_cuda
 
     @torch.no_grad()
