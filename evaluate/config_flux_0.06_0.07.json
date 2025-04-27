@@ -1,0 +1,6 @@
+{  
+  "py_file": "evaluate/flux_example.py",  
+  "l1": 0.06,  
+  "pv_l1": 0.07,  
+  "model_out_path": "evaluate/models_dict/flux_saved_state_dict_0.06_0.07.pt"  
+}  
