@@ -1,11 +1,7 @@
 # Sparge Attention
 The official implementation of [SpargeAttn](https://arxiv.org/abs/2502.18137), a universal sparse attention accelerating language, image, and video models.
 
-<div align="center"> 
-<h2>SpargeAttn: Accurate Sparse Attention Accelerating Any Model Inference </h2>
-<a href="https://huggingface.co/papers/2502.18137"><img src="https://img.shields.io/static/v1?label=Daily papers&message=HuggingFace&color=yellow"></a>
-<a href='https://arxiv.org/abs/2502.18137'><img src='https://img.shields.io/badge/arXiv-2502.15894-b31b1b.svg'></a> &nbsp;
-</div>
+<div align="center"> <h2>SpargeAttn: Accurate Sparse Attention Accelerating Any Model Inference</h2> <a href="https://huggingface.co/papers/2502.18137"> <img src="https://img.shields.io/static/v1?label=Daily%20papers&message=HuggingFace&color=yellow" alt="Daily papers: HuggingFace"> </a> <a href="https://arxiv.org/abs/2502.18137"> <img src="https://img.shields.io/badge/arXiv-2502.18137-b31b1b.svg" alt="arXiv:2502.18137"> </a> </div> 
 
 <div align="center">
     <a href="https://jt-zhang.github.io/" target="_blank">Jintao Zhang</a><sup></sup> | 
@@ -82,10 +78,13 @@ We provide pre-tuned hyper-parameters `CogVideoX-2b_0.06_0.07.pt` that allow run
 The tuning and inference usage is similar to CogVideoX.
 
 ### Supported models
-Here’s a list of the tuned models so far. Our approach is universal, and we warmly welcome contributions! Feel free to submit a pull request to support more models. 🚀
+Here’s a list of the tuned models so far, go to [hugginface](https://huggingface.co/Xiang-cd/sparge-attention-model-zoo) to see all tuned ckpt. 
+Our approach is universal, and we warmly welcome contributions! Feel free to submit a pull request to support more models. 🚀
+
 | model name | example script | tuned ckpt |
 | ---- | ---- | ---- |
-| CogVideoX-2b | evaluate/cogvideo_example.py | evaluate/models_dict/CogVideoX-2b_0.06_0.07.pt 
+| CogVideoX-2b | evaluate/cogvideo_example.py | [link](https://huggingface.co/Xiang-cd/sparge-attention-model-zoo/blob/main/cogvideox-2b/CogVideoX-2b_0.06_0.07.pt)
+| want2v-1.3B  | evaluate/wan_example.py | [link](https://huggingface.co/Xiang-cd/sparge-attention-model-zoo/tree/main/want2v-1.3B)
 | Flux  | evaluate/flux_example.py  | TBD 
 
 
